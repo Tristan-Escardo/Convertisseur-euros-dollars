@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f4fa3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Convertisseur">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Convertisseur NYC</title>
+<style>
+/* Layout: une colonne étroite (téléphone), deux blocs : conversion dans les deux sens, puis prix final à New York.
+   Couleurs : bleu pour l'euro, vert pour le dollar, neutres légèrement bleutés. */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --fg: #16202e;
+  --muted: #5d6b7e;
+  --line: #d7dde6;
+  --eur: #1f4fa3;
+  --eur-soft: #e6edfa;
+  --usd: #1d6a43;
+  --usd-soft: #e3f3ea;
+  --warn: #8a5a00;
+  --warn-soft: #fbf0d9;
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-num: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f151e;
+    --surface: #18202c;
+    --fg: #e8edf4;
+    --muted: #93a0b3;
+    --line: #2b3646;
+    --eur: #8fb4ff;
+    --eur-soft: #1b2a45;
+    --usd: #7fd1a3;
+    --usd-soft: #173326;
+    --warn: #f0c36a;
+    --warn-soft: #3a2f14;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f151e;
+  --surface: #18202c;
+  --fg: #e8edf4;
+  --muted: #93a0b3;
+  --line: #2b3646;
+  --eur: #8fb4ff;
+  --eur-soft: #1b2a45;
+  --usd: #7fd1a3;
+  --usd-soft: #173326;
+  --warn: #f0c36a;
+  --warn-soft: #3a2f14;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.45;
+  padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap {
+  max-width: 460px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+h1 {
+  font-size: 1.6rem;
+  line-height: 1.15;
+  margin: 0;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+h1 .e { color: var(--eur); }
+h1 .d { color: var(--usd); }
+h2 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 12px;
+  font-weight: 700;
+}
+.sub { margin: 6px 0 0; color: var(--muted); font-size: 0.92rem; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+}
+.field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 6px 14px;
+  background: var(--bg);
+}
+.field + .field { margin-top: 10px; }
+.field .sym {
+  font-family: var(--font-num);
+  font-size: 1.7rem;
+  font-weight: 700;
+  width: 1.2ch;
+  flex: none;
+}
+.field.eur .sym { color: var(--eur); }
+.field.usd .sym { color: var(--usd); }
+.field.eur:focus-within { border-color: var(--eur); }
+.field.usd:focus-within { border-color: var(--usd); }
+.field input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--font-num);
+  font-size: 1.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 6px 0;
+  outline: none;
+  text-align: right;
+}
+.field .unit { color: var(--muted); font-size: 0.8rem; flex: none; }
+
+.rate {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+.rate input {
+  width: 6.2em;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  text-align: right;
+}
+.rate input:focus-visible, button:focus-visible, .field input:focus-visible, .check input:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+button {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.stamp { flex-basis: 100%; font-size: 0.8rem; }
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 0.95rem;
+}
+.check input { width: 22px; height: 22px; margin: 1px 0 0; flex: none; accent-color: var(--usd); }
+.check small { display: block; color: var(--muted); font-size: 0.8rem; }
+
+dl.out { margin: 16px 0 0; display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; }
+dl.out dt { color: var(--muted); font-size: 0.95rem; }
+dl.out dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+dl.out .total-dt { padding-top: 10px; border-top: 1px solid var(--line); color: var(--fg); font-weight: 700; }
+dl.out .total-dd { padding-top: 10px; border-top: 1px solid var(--line); font-size: 1.5rem; font-family: var(--font-num); color: var(--usd); }
+dl.out .eur-dd { color: var(--eur); font-size: 1.15rem; font-family: var(--font-num); }
+.note {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 0.85rem;
+}
+.foot { color: var(--muted); font-size: 0.8rem; margin: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .field { transition: border-color 0.15s; }
+}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <h1><span class="e">Euros</span> ⇄ <span class="d">dollars</span></h1>
+    <p class="sub">Tape dans une case, l'autre se met à jour. Le calcul se fait sur ton téléphone, sans connexion.</p>
+  </header>
+
+  <section class="card" aria-labelledby="t-conv">
+    <h2 id="t-conv">Conversion</h2>
+    <label class="field eur" for="eur">
+      <span class="sym">€</span>
+      <input id="eur" type="text" inputmode="decimal" autocomplete="off" value="10" aria-label="Montant en euros">
+      <span class="unit">EUR</span>
+    </label>
+    <label class="field usd" for="usd">
+      <span class="sym">$</span>
+      <input id="usd" type="text" inputmode="decimal" autocomplete="off" aria-label="Montant en dollars">
+      <span class="unit">USD</span>
+    </label>
+
+    <div class="rate">
+      <label for="rate">1 € =</label>
+      <input id="rate" type="text" inputmode="decimal" autocomplete="off" aria-label="Taux : dollars pour 1 euro">
+      <span>$</span>
+      <button id="reset" type="button">Remettre le taux de départ</button>
+      <span class="stamp" id="stamp"></span>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="t-nyc">
+    <h2 id="t-nyc">Prix final à New York</h2>
+    <label class="field usd" for="price">
+      <span class="sym">$</span>
+      <input id="price" type="text" inputmode="decimal" autocomplete="off" value="45" aria-label="Prix affiché en dollars, taxe non comprise">
+      <span class="unit">sur l'étiquette</span>
+    </label>
+
+    <label class="check">
+      <input id="cloth" type="checkbox">
+      <span>Vêtement ou chaussures
+        <small>Pas de taxe si l'article coûte moins de 110 $</small>
+      </span>
+    </label>
+
+    <dl class="out" aria-live="polite">
+      <dt>Prix affiché</dt><dd id="o-price"></dd>
+      <dt id="o-taxlabel">Taxe</dt><dd id="o-tax"></dd>
+      <dt class="total-dt">Total à payer</dt><dd class="total-dd" id="o-total"></dd>
+      <dt>Soit en euros</dt><dd class="eur-dd" id="o-eur"></dd>
+    </dl>
+    <p class="note" id="o-note" hidden></p>
+  </section>
+
+  <p class="foot">Aux États-Unis, le prix affiché n'inclut jamais la taxe : elle s'ajoute à la caisse. À New York, elle est de 8,875 % (4 % État + 4,5 % ville + 0,375 % transports). Le taux de change est une valeur de départ : modifie-le avec celui de ton appli bancaire pour être précis.</p>
+</main>
+
+<script>
+(function () {
+  var DEFAULT = { rate: 1.1202, label: "cours du 23 oct. 2026" };
+  var TAX = 0.08875;
+  var KEY = "convertisseur-nyc-v1";
+  var state = { rate: DEFAULT.rate, label: DEFAULT.label };
+
+  try {
+    var saved = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (saved && saved.rate > 0) { state = saved; }
+  } catch (e) {}
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  function $(id) { return document.getElementById(id); }
+  function parse(s) {
+    var n = parseFloat(String(s).replace(/\s/g, "").replace(",", "."));
+    return isFinite(n) && n >= 0 ? n : null;
+  }
+  function plain(n, d) { return n.toFixed(d).replace(".", ","); }
+  function money(n, sym) {
+    return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " " + sym;
+  }
+  function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+
+  var eur = $("eur"), usd = $("usd"), rate = $("rate"), price = $("price"), cloth = $("cloth");
+
+  function renderStamp() {
+    $("stamp").textContent = "Taux enregistré : " + state.label + ".";
+  }
+
+  function fromEur() {
+    var v = parseFloat(String(eur.value).replace(/\s/g, "").replace(",", "."));
+    usd.value = isFinite(v) ? plain(v * state.rate, 2) : "";
+  }
+  function fromUsd() {
+    var v = parseFloat(String(usd.value).replace(/\s/g, "").replace(",", "."));
+    eur.value = isFinite(v) ? plain(v / state.rate, 2) : "";
+  }
+
+  function renderNyc() {
+    var p = parse(price.value);
+    var note = $("o-note");
+    if (p === null) {
+      ["o-price", "o-tax", "o-total", "o-eur"].forEach(function (id) { $(id).textContent = "–"; });
+      $("o-taxlabel").textContent = "Taxe";
+      note.hidden = true;
+      return;
+    }
+    var exempt = cloth.checked && p < 110;
+    var tax = exempt ? 0 : round2(p * TAX);
+    var total = round2(p + tax);
+    $("o-price").textContent = money(p, "$");
+    $("o-taxlabel").textContent = exempt ? "Taxe (exonéré)" : "Taxe (8,875 %)";
+    $("o-tax").textContent = money(tax, "$");
+    $("o-total").textContent = money(total, "$");
+    $("o-eur").textContent = money(total / state.rate, "€");
+    if (cloth.checked && !exempt) {
+      note.textContent = "À partir de 110 $ par article, la taxe de 8,875 % s'applique en entier.";
+      note.hidden = false;
+    } else {
+      note.hidden = true;
+    }
+  }
+
+  eur.addEventListener("input", function () { fromEur(); });
+  usd.addEventListener("input", function () { fromUsd(); });
+  price.addEventListener("input", renderNyc);
+  cloth.addEventListener("change", renderNyc);
+
+  rate.addEventListener("input", function () {
+    var r = parse(rate.value);
+    if (r && r > 0) {
+      state.rate = r;
+      state.label = "modifié par toi";
+      save();
+      renderStamp();
+      fromEur();
+      renderNyc();
+    }
+  });
+  rate.addEventListener("blur", function () { rate.value = plain(state.rate, 4); });
+
+  $("reset").addEventListener("click", function () {
+    state = { rate: DEFAULT.rate, label: DEFAULT.label };
+    save();
+    rate.value = plain(state.rate, 4);
+    renderStamp();
+    fromEur();
+    renderNyc();
+  });
+
+  rate.value = plain(state.rate, 4);
+  renderStamp();
+  fromEur();
+  renderNyc();
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  });
+}
+</script>
+</body>
+</html>
