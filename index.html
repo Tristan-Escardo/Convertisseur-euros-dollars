@@ -210,7 +210,7 @@ dl.out .eur-dd { color: var(--eur); font-size: 1.15rem; font-family: var(--font-
 <main class="wrap">
   <header>
     <h1><span class="e">Euros</span> ⇄ <span class="d">dollars</span></h1>
-    <p class="sub">Tape dans une case, l'autre se met à jour. Le calcul se fait sur ton téléphone, sans connexion.</p>
+    <p class="sub">Tape dans une case, l'autre se met à jour. Le calcul se fait sur ton téléphone, même sans connexion.</p>
   </header>
 
   <section class="card" aria-labelledby="t-conv">
@@ -230,7 +230,7 @@ dl.out .eur-dd { color: var(--eur); font-size: 1.15rem; font-family: var(--font-
       <label for="rate">1 € =</label>
       <input id="rate" type="text" inputmode="decimal" autocomplete="off" aria-label="Taux : dollars pour 1 euro">
       <span>$</span>
-      <button id="reset" type="button">Remettre le taux de départ</button>
+      <button id="reset" type="button">Revenir au taux automatique</button>
       <span class="stamp" id="stamp"></span>
     </div>
   </section>
@@ -259,22 +259,33 @@ dl.out .eur-dd { color: var(--eur); font-size: 1.15rem; font-family: var(--font-
     <p class="note" id="o-note" hidden></p>
   </section>
 
-  <p class="foot">Aux États-Unis, le prix affiché n'inclut jamais la taxe : elle s'ajoute à la caisse. À New York, elle est de 8,875 % (4 % État + 4,5 % ville + 0,375 % transports). Le taux de change est une valeur de départ : modifie-le avec celui de ton appli bancaire pour être précis.</p>
+  <p class="foot">Aux États-Unis, le prix affiché n'inclut jamais la taxe : elle s'ajoute à la caisse. À New York, elle est de 8,875 % (4 % État + 4,5 % ville + 0,375 % transports). Le taux de change se met à jour tout seul quand il y a du réseau (cours de la BCE) ; sans réseau, le dernier taux connu est utilisé. Tu peux le modifier avec celui de ton appli bancaire pour être plus précis.</p>
 </main>
 
 <script>
 (function () {
-  var DEFAULT = { rate: 1.1202, label: "cours du 23 oct. 2026" };
+  var DEFAULT = { rate: 1.1202, date: "2026-10-23" };
   var TAX = 0.08875;
-  var KEY = "convertisseur-nyc-v1";
-  var state = { rate: DEFAULT.rate, label: DEFAULT.label };
+  var KEY = "convertisseur-nyc-v2";
+  var OLD_KEY = "convertisseur-nyc-v1";
+  var API = "https://api.frankfurter.dev/v1/latest?base=EUR&symbols=USD";
+  // manual : taux saisi par l'utilisateur (seul taux qui prime sur le reste)
+  // auto   : dernier taux récupéré en ligne, gardé pour le hors ligne
+  var store = { manual: null, auto: null };
+  var last = "eur"; // dernier champ saisi, pour recalculer l'autre quand le taux change
 
   try {
     var saved = JSON.parse(localStorage.getItem(KEY) || "null");
-    if (saved && saved.rate > 0) { state = saved; }
+    if (saved) {
+      store = { manual: saved.manual || null, auto: saved.auto || null };
+    } else {
+      // Ancienne version : on ne garde que les taux réellement saisis à la main
+      var old = JSON.parse(localStorage.getItem(OLD_KEY) || "null");
+      if (old && old.rate > 0 && old.label === "modifié par toi") { store.manual = { rate: old.rate }; }
+    }
   } catch (e) {}
 
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
   function $(id) { return document.getElementById(id); }
   function parse(s) {
     var n = parseFloat(String(s).replace(/\s/g, "").replace(",", "."));
@@ -282,24 +293,37 @@ dl.out .eur-dd { color: var(--eur); font-size: 1.15rem; font-family: var(--font-
   }
   function plain(n, d) { return n.toFixed(d).replace(".", ","); }
   function money(n, sym) {
-    return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " " + sym;
+    return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " " + sym;
   }
   function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+  function dateFr(iso) {
+    var d = new Date(iso + "T12:00:00");
+    return isNaN(d) ? iso : d.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+  }
+  function currentRate() {
+    return (store.manual || store.auto || DEFAULT).rate;
+  }
 
   var eur = $("eur"), usd = $("usd"), rate = $("rate"), price = $("price"), cloth = $("cloth");
 
   function renderStamp() {
-    $("stamp").textContent = "Taux enregistré : " + state.label + ".";
+    var t;
+    if (store.manual) { t = "Taux modifié par toi."; }
+    else if (store.auto) { t = "Taux du " + dateFr(store.auto.date) + ", mis à jour automatiquement."; }
+    else { t = "Taux enregistré : cours du " + dateFr(DEFAULT.date) + " (pas encore mis à jour)."; }
+    $("stamp").textContent = t;
+    $("reset").hidden = !store.manual;
   }
 
   function fromEur() {
     var v = parseFloat(String(eur.value).replace(/\s/g, "").replace(",", "."));
-    usd.value = isFinite(v) ? plain(v * state.rate, 2) : "";
+    usd.value = isFinite(v) ? plain(v * currentRate(), 2) : "";
   }
   function fromUsd() {
     var v = parseFloat(String(usd.value).replace(/\s/g, "").replace(",", "."));
-    eur.value = isFinite(v) ? plain(v / state.rate, 2) : "";
+    eur.value = isFinite(v) ? plain(v / currentRate(), 2) : "";
   }
+  function recompute() { if (last === "usd") { fromUsd(); } else { fromEur(); } }
 
   function renderNyc() {
     var p = parse(price.value);
@@ -317,7 +341,7 @@ dl.out .eur-dd { color: var(--eur); font-size: 1.15rem; font-family: var(--font-
     $("o-taxlabel").textContent = exempt ? "Taxe (exonéré)" : "Taxe (8,875 %)";
     $("o-tax").textContent = money(tax, "$");
     $("o-total").textContent = money(total, "$");
-    $("o-eur").textContent = money(total / state.rate, "€");
+    $("o-eur").textContent = money(total / currentRate(), "€");
     if (cloth.checked && !exempt) {
       note.textContent = "À partir de 110 $ par article, la taxe de 8,875 % s'applique en entier.";
       note.hidden = false;
@@ -326,37 +350,59 @@ dl.out .eur-dd { color: var(--eur); font-size: 1.15rem; font-family: var(--font-
     }
   }
 
-  eur.addEventListener("input", function () { fromEur(); });
-  usd.addEventListener("input", function () { fromUsd(); });
+  function refresh() {
+    if (document.activeElement !== rate) { rate.value = plain(currentRate(), 4); }
+    renderStamp();
+    recompute();
+    renderNyc();
+  }
+
+  eur.addEventListener("input", function () { last = "eur"; fromEur(); });
+  usd.addEventListener("input", function () { last = "usd"; fromUsd(); });
   price.addEventListener("input", renderNyc);
   cloth.addEventListener("change", renderNyc);
 
   rate.addEventListener("input", function () {
     var r = parse(rate.value);
     if (r && r > 0) {
-      state.rate = r;
-      state.label = "modifié par toi";
+      store.manual = { rate: r };
       save();
       renderStamp();
-      fromEur();
+      recompute();
       renderNyc();
     }
   });
-  rate.addEventListener("blur", function () { rate.value = plain(state.rate, 4); });
+  rate.addEventListener("blur", function () { rate.value = plain(currentRate(), 4); });
 
   $("reset").addEventListener("click", function () {
-    state = { rate: DEFAULT.rate, label: DEFAULT.label };
+    store.manual = null;
     save();
-    rate.value = plain(state.rate, 4);
-    renderStamp();
-    fromEur();
-    renderNyc();
+    refresh();
+    fetchRate();
   });
 
-  rate.value = plain(state.rate, 4);
-  renderStamp();
-  fromEur();
-  renderNyc();
+  // Récupère le taux du jour s'il y a du réseau ; sinon on garde le dernier connu
+  function fetchRate() {
+    if (!window.fetch || navigator.onLine === false) { return; }
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) { ctrl.abort(); } }, 6000);
+    fetch(API, ctrl ? { signal: ctrl.signal, cache: "no-store" } : { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+      .then(function (j) {
+        var r = j && j.rates && j.rates.USD;
+        if (r > 0 && j.date) {
+          store.auto = { rate: r, date: j.date };
+          save();
+          refresh();
+        }
+      })
+      .catch(function () {})
+      .then(function () { clearTimeout(timer); });
+  }
+
+  refresh();
+  fetchRate();
+  window.addEventListener("online", fetchRate);
 })();
 </script>
 <script>

@@ -1,4 +1,4 @@
-const CACHE = "convertisseur-nyc-v3";
+const CACHE = "convertisseur-nyc-v4";
 const FILES = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
 
 self.addEventListener("install", (e) => {
@@ -17,6 +17,7 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  if (new URL(e.request.url).origin !== self.location.origin) return; // taux de change : toujours en direct
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then((hit) => {
       const refresh = fetch(e.request)
