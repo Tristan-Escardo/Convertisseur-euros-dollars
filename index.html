@@ -137,6 +137,7 @@ h2 {
   outline: none;
   text-align: right;
 }
+.field input::placeholder { color: var(--muted); opacity: 0.45; }
 .field .unit { color: var(--muted); font-size: 0.8rem; flex: none; }
 
 .rate {
@@ -216,12 +217,12 @@ dl.out .eur-dd { color: var(--eur); font-size: 1.15rem; font-family: var(--font-
     <h2 id="t-conv">Conversion</h2>
     <label class="field eur" for="eur">
       <span class="sym">€</span>
-      <input id="eur" type="text" inputmode="decimal" autocomplete="off" value="10" aria-label="Montant en euros">
+      <input id="eur" type="text" inputmode="decimal" autocomplete="off" placeholder="10" aria-label="Montant en euros">
       <span class="unit">EUR</span>
     </label>
     <label class="field usd" for="usd">
       <span class="sym">$</span>
-      <input id="usd" type="text" inputmode="decimal" autocomplete="off" aria-label="Montant en dollars">
+      <input id="usd" type="text" inputmode="decimal" autocomplete="off" placeholder="11,20" aria-label="Montant en dollars">
       <span class="unit">USD</span>
     </label>
 
@@ -238,7 +239,7 @@ dl.out .eur-dd { color: var(--eur); font-size: 1.15rem; font-family: var(--font-
     <h2 id="t-nyc">Prix final à New York</h2>
     <label class="field usd" for="price">
       <span class="sym">$</span>
-      <input id="price" type="text" inputmode="decimal" autocomplete="off" value="45" aria-label="Prix affiché en dollars, taxe non comprise">
+      <input id="price" type="text" inputmode="decimal" autocomplete="off" placeholder="45" aria-label="Prix affiché en dollars, taxe non comprise">
       <span class="unit">sur l'étiquette</span>
     </label>
 
