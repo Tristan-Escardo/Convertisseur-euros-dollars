@@ -200,6 +200,19 @@ dl.out .eur-dd { color: var(--eur); font-size: 1.15rem; font-family: var(--font-
   color: var(--warn);
   font-size: 0.85rem;
 }
+
+.clock { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.clock > div { border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--bg); }
+.clock .city { font-size: 0.8rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.clock .time { font-family: var(--font-num); font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.clock .ny .time { color: var(--usd); }
+.clock .fr .time { color: var(--eur); }
+.clock .tag { font-size: 0.8rem; color: var(--muted); min-height: 1.2em; }
+.slider-row { margin-top: 16px; }
+.slider-row label { display: flex; justify-content: space-between; align-items: center; font-size: 0.92rem; color: var(--muted); }
+.slider-row input[type=range] { width: 100%; margin: 10px 0 0; accent-color: var(--usd); height: 28px; }
+.slider-row .ticks { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gap-info { margin: 12px 0 0; font-size: 0.85rem; color: var(--muted); }
 .foot { color: var(--muted); font-size: 0.8rem; margin: 0; }
 @media (prefers-reduced-motion: no-preference) {
   .field { transition: border-color 0.15s; }
@@ -257,6 +270,20 @@ dl.out .eur-dd { color: var(--eur); font-size: 1.15rem; font-family: var(--font-
       <dt>Soit en euros</dt><dd class="eur-dd" id="o-eur"></dd>
     </dl>
     <p class="note" id="o-note" hidden></p>
+  </section>
+
+  <section class="card" aria-labelledby="t-time">
+    <h2 id="t-time">Heure New York ⇄ France</h2>
+    <div class="clock" aria-live="polite">
+      <div class="ny"><div class="city">New York</div><div class="time" id="t-ny">–</div><div class="tag" id="g-ny"></div></div>
+      <div class="fr"><div class="city">France</div><div class="time" id="t-fr">–</div><div class="tag" id="g-fr"></div></div>
+    </div>
+    <div class="slider-row">
+      <label for="slider"><span>Heure à New York</span><button id="now" type="button" hidden>Maintenant</button></label>
+      <input id="slider" type="range" min="0" max="1435" step="5" value="0" aria-label="Heure à New York">
+      <div class="ticks" aria-hidden="true"><span>0 h</span><span>6 h</span><span>12 h</span><span>18 h</span><span>24 h</span></div>
+    </div>
+    <p class="gap-info" id="gap-info"></p>
   </section>
 
   <p class="foot">Aux États-Unis, le prix affiché n'inclut jamais la taxe : elle s'ajoute à la caisse. À New York, elle est de 8,875 % (4 % État + 4,5 % ville + 0,375 % transports). Le taux de change se met à jour tout seul quand il y a du réseau (cours de la BCE) ; sans réseau, le dernier taux connu est utilisé. Tu peux le modifier avec celui de ton appli bancaire pour être plus précis.</p>
@@ -403,6 +430,81 @@ dl.out .eur-dd { color: var(--eur); font-size: 1.15rem; font-family: var(--font-
   refresh();
   fetchRate();
   window.addEventListener("online", fetchRate);
+})();
+</script>
+<script>
+(function () {
+  var NY = "America/New_York", FR = "Europe/Paris";
+  var live = true;
+  function $(id) { return document.getElementById(id); }
+  function parts(date, tz) {
+    var o = {};
+    new Intl.DateTimeFormat("en-GB", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" })
+      .formatToParts(date).forEach(function (p) { o[p.type] = +p.value; });
+    return o;
+  }
+  // Décalage de la zone par rapport à UTC, en minutes (gère l'heure d'été/hiver tout seul)
+  function offset(date, tz) {
+    var o = parts(date, tz);
+    return (Date.UTC(o.year, o.month - 1, o.day, o.hour, o.minute) - Math.floor(date / 60000) * 60000) / 60000;
+  }
+  function wallToInstant(y, m, d, min, tz) {
+    var guess = Date.UTC(y, m - 1, d, 0, min);
+    var t = guess - offset(new Date(guess), tz) * 60000;
+    t = guess - offset(new Date(t), tz) * 60000;
+    return new Date(t);
+  }
+  function isSummer(date, tz) {
+    var y = date.getUTCFullYear();
+    var a = offset(new Date(Date.UTC(y, 0, 15)), tz), b = offset(new Date(Date.UTC(y, 6, 15)), tz);
+    return offset(date, tz) > Math.min(a, b);
+  }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function hhmm(o) { return pad(o.hour) + ":" + pad(o.minute); }
+  function season(date, tz) { return isSummer(date, tz) ? "heure d'été" : "heure d'hiver"; }
+  function gap(date) { return (offset(date, FR) - offset(date, NY)) / 60; }
+  function hours(n) { return String(n).replace(".", ",") + " h"; }
+
+  var slider = $("slider");
+
+  function render(inst) {
+    var ny = parts(inst, NY), fr = parts(inst, FR);
+    $("t-ny").textContent = hhmm(ny);
+    $("t-fr").textContent = hhmm(fr);
+    $("g-ny").textContent = season(inst, NY);
+    var dd = Math.round((Date.UTC(fr.year, fr.month - 1, fr.day) - Date.UTC(ny.year, ny.month - 1, ny.day)) / 864e5);
+    $("g-fr").textContent = season(inst, FR) + (dd > 0 ? " · demain" : dd < 0 ? " · hier" : "");
+
+    var g = gap(inst), txt = "Décalage : " + hours(g) + ".";
+    for (var i = 1; i <= 400; i++) {
+      var later = new Date(inst.getTime() + i * 864e5);
+      if (gap(later) !== g) {
+        var when = later.toLocaleDateString("fr-FR", { timeZone: NY, weekday: "short", day: "numeric", month: "short" }).replace(/\.$/, "");
+        txt += " Il passera à " + hours(gap(later)) + " le " + when + ".";
+        break;
+      }
+    }
+    $("gap-info").textContent = txt;
+  }
+
+  function tick() {
+    var now = new Date();
+    if (live) {
+      var ny = parts(now, NY);
+      slider.value = Math.min(1435, Math.round((ny.hour * 60 + ny.minute) / 5) * 5);
+      render(now);
+    } else {
+      var o = parts(now, NY), v = +slider.value;
+      render(wallToInstant(o.year, o.month, o.day, v, NY));
+    }
+    $("now").hidden = live;
+  }
+
+  slider.addEventListener("input", function () { live = false; tick(); });
+  $("now").addEventListener("click", function () { live = true; tick(); });
+  tick();
+  setInterval(function () { if (live) { tick(); } }, 20000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && live) { tick(); } });
 })();
 </script>
 <script>
